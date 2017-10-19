@@ -8,7 +8,7 @@ import io.github.config4k.extract
 import io.github.config4k.readers.SelectReader
 import kotlin.reflect.KClass
 
-inline fun <C: Any> Config.extract(type: KClass<C>, path: String): C {
+fun <C : Any> Config.extract(type: KClass<C>, path: String): C {
     val genericType = object : TypeReference<C>() {}.genericType()
     val clazz = listOf(type)
 
