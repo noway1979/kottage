@@ -3,9 +3,9 @@ package org.noway.kottage
 import mu.KotlinLogging
 import org.apache.commons.io.FileUtils
 import org.junit.jupiter.api.extension.ExtensionContext
-import java.nio.file.Path
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.Path
 
 fun TestResourceManager.getTestEnvironment() : TestEnvironment
 {
@@ -29,22 +29,22 @@ class TestEnvironment(testResourceManager: TestResourceManager) : AbstractTestRe
         logger.info { "TestEnvironment initialized" }
     }
 
-    override fun setupTestInstance() {
+    override fun setupTestInstance(context: ExtensionContext) {
     }
 
-    override fun setupTestMethod() {
+    override fun setupTestMethod(context: ExtensionContext) {
     }
 
     override fun tearDownTestMethod(context: ExtensionContext) {
     }
 
-    override fun postProcessTestInstance(testInstance: Any, context: ExtensionContext) {
+    override fun postProcessTestInstance(context: ExtensionContext) {
     }
 
     override fun tearDownTestInstance(context: ExtensionContext) {
     }
 
-    override fun dispose() {
+    override fun dispose(context: ExtensionContext) {
         fileResources.dispose()
     }
 

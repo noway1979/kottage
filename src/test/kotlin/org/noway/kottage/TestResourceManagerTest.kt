@@ -1,10 +1,12 @@
 package org.noway.kottage
 
+import io.kotlintest.mock.mock
 import mu.KotlinLogging
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtensionContext
 import org.opentest4j.MultipleFailuresError
 
 class TestResourceManagerTest() {
@@ -63,7 +65,7 @@ class TestResourceManagerTest() {
     @Test
     fun testResourceLifecycleWithValidationShouldThrowMultipleExceptions() {
         abstract class FailingTestResource(manager: TestResourceManager) : AbstractTestResource(manager) {
-            override fun setupTestMethod() {
+            override fun setupTestMethod(context: ExtensionContext) {
                 throw TestResourceException("Deliberate Exception from TestResource")
             }
         }
@@ -79,13 +81,13 @@ class TestResourceManagerTest() {
             registerResource(TestResource1::class.java, testResource1)
             registerResource(TestResource2::class.java, testResource2)
 
-            assertThrows(MultipleFailuresError::class.java, { executeOnResourcesWithFailureValidation({ it.setupTestMethod() }) })
+            assertThrows(MultipleFailuresError::class.java, { executeOnResourcesWithFailureValidation({ it.setupTestMethod(mock<ExtensionContext>()) }) })
         })
     }
 
 
     @Test
     fun testResourceLifecycleWithValidationShouldExecuteForAllResources() {
-
+        TODO()
     }
 }

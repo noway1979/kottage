@@ -1,11 +1,10 @@
 package org.noway.kottage
 
 import io.kotlintest.mock.mock
-import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.CoreMatchers.`is`
-import org.hamcrest.Matcher
-import org.hamcrest.Matchers
+import org.hamcrest.MatcherAssert.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtensionContext
 import java.nio.file.Files
 
 class TestEnvironmentTest {
@@ -19,7 +18,7 @@ class TestEnvironmentTest {
         environment.fileResources.registerManagedPath(directory)
 
         //when
-        environment.dispose()
+        environment.dispose(mock<ExtensionContext>())
 
         //then
         assertThat(Files.exists(directory), `is`(false))
@@ -35,7 +34,7 @@ class TestEnvironmentTest {
         environment.fileResources.registerManagedPath(file)
 
         //when
-        environment.dispose()
+        environment.dispose(mock<ExtensionContext>())
 
         //then
         assertThat(Files.exists(file), `is`(false))
@@ -55,7 +54,7 @@ class TestEnvironmentTest {
         environment.fileResources.registerManagedPath(directory)
 
         //when
-        environment.dispose()
+        environment.dispose(mock<ExtensionContext>())
 
         //then
         assertThat(Files.exists(directory), `is`(false))

@@ -37,7 +37,7 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 
     @Throws(Exception::class)
     override fun postProcessTestInstance(testInstance: Any, context: ExtensionContext) {
-        getTestResourceManager(context).postProcessTestInstance(testInstance, context)
+        getTestResourceManager(context).postProcessTestInstance(context)
     }
 
     @Throws(TestResourceException::class)
@@ -64,12 +64,12 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 
     @Throws(Exception::class)
     override fun beforeEach(context: ExtensionContext) {
-        getTestResourceManager(context).setupTestInstance()
+        getTestResourceManager(context).setupTestInstance(context)
     }
 
     @Throws(Exception::class)
     override fun beforeTestExecution(context: ExtensionContext) {
-        getTestResourceManager(context).setupTestMethod()
+        getTestResourceManager(context).setupTestMethod(context)
     }
 
     @Throws(Exception::class)
@@ -84,7 +84,7 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 
     @Throws(Exception::class)
     override fun afterAll(context: ExtensionContext) {
-        getTestResourceManager(context).dispose()
+        getTestResourceManager(context).dispose(context)
     }
 
     @Throws(Throwable::class)
@@ -98,17 +98,19 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     var currentTestPhase = TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS
 
     private val logger = KotlinLogging.logger {}
+
+    //TODO make this an explicit object and move registeeMethods to that object
     private val resources: MutableMap<Class<TestResource>, TestResource> = mutableMapOf()
+    val resourceOperations = TestResourceOperations(this)
 
     override fun transitionTo(phase: TestLifecyclePhased.TestLifecyclePhase) {
         logger.debug { "Transitioning to: $phase" }
         currentTestPhase = phase
     }
 
-    internal fun executeOnResourcesWithFailureValidation(func : (TestResource) -> Unit) {
+    internal fun executeOnResourcesWithFailureValidation(func: (TestResource) -> Unit) {
         val validation: Validation<TestResourceException> = resources.values.forEachWithException(func)
-        if (validation.hasFailure)
-        {
+        if (validation.hasFailure) {
             throw MultipleFailuresError("Failures during resource tear down", validation.failures)
         }
     }
@@ -118,20 +120,21 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     }
 
     @Throws(MultipleFailuresError::class)
-    override fun setupTestInstance() {
-        executeOnResourcesWithFailureValidation({ it.setupTestInstance() })
+    override fun setupTestInstance(context: ExtensionContext) {
+        executeOnResourcesWithFailureValidation({ it.setupTestInstance(context) })
     }
 
     @Throws(MultipleFailuresError::class)
-    override fun postProcessTestInstance(testInstance: Any, context: ExtensionContext) {
-        executeOnResourcesWithFailureValidation({ it.postProcessTestInstance(testInstance, context) })
+    override fun postProcessTestInstance(context: ExtensionContext) {
+        executeOnResourcesWithFailureValidation({ it.postProcessTestInstance(context) })
     }
+
     @Throws(MultipleFailuresError::class)
-    override fun setupTestMethod() {
+    override fun setupTestMethod(context: ExtensionContext) {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.BEFORE_TEST)
 
         //setup resources for test
-        executeOnResourcesWithFailureValidation({ it.setupTestMethod() })
+        executeOnResourcesWithFailureValidation({ it.setupTestMethod(context) })
 
         //must be last statement in this method
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.IN_TEST)
@@ -141,32 +144,40 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     override fun tearDownTestMethod(context: ExtensionContext) {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST)
         executeOnResourcesWithFailureValidation({ it.tearDownTestMethod(context) })
+
+        resourceOperations.reverseAfterTest()
+        //afterEach methods come here, operations are reversed already
+        // Reason: there is no callback after @AfterEach method invocation but AfterAll (tearDownTestInstance) is too late after more tests will be run before)
+        // something required like tearDownAfterEach which is called after @AfterEach not before
     }
 
     @Throws(MultipleFailuresError::class)
     override fun tearDownTestInstance(context: ExtensionContext) {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS)
         executeOnResourcesWithFailureValidation({ it.tearDownTestInstance(context) })
+
+        //afterAll methods come here, operations are not reversed yet (--> done in dispose)
     }
 
     @Throws(MultipleFailuresError::class)
-    override fun dispose() {
-        executeOnResourcesWithFailureValidation({ it.dispose() })
+    override fun dispose(context: ExtensionContext) {
+        //reverting late to keep operation effects for @AfterAll
+        resourceOperations.reverseAfterClass()
+        executeOnResourcesWithFailureValidation({ it.dispose(context) })
     }
 
     fun handleTestException(context: ExtensionContext, throwable: Throwable) {
         throw throwable
     }
 
-    fun <T : TestResource> registerResources(vararg entries : Pair<Class<T>, T> )
-    {
+    fun <T : TestResource> registerResources(vararg entries: Pair<Class<T>, T>) {
         entries.forEach { registerResource(it.first, it.second) }
     }
 
     fun <T : TestResource> registerResource(key: Class<T>, instance: T) {
         resources.put(key as Class<TestResource>, instance)
         instance.init()
-        logger.info { "Registered instance: ${instance.javaClass.name} for key '${key.simpleName}'" }
+        logger.info { "Registered instance: ${instance.displayName} for key '${key.simpleName}'" }
     }
 
     //try reified form: http://kotlinlang.org/docs/reference/idioms.html#convenient-form-for-a-generic-function-that-requires-the-generic-type-information
