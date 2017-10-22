@@ -54,7 +54,9 @@ abstract class AbstractTestResource(val testResourceManager: TestResourceManager
     }
 }
 
-abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: TestResourceManager, config: Configuration) : AbstractTestResource(testResourceManager) {
+abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: TestResourceManager,
+                                                         config: Configuration) :
+        AbstractTestResource(testResourceManager) {
     protected abstract val reifiedConfigType: KClass<C>
 
     //https@ //stackoverflow.com/questions/36012190/kotlin-abstract-class-with-generic-param-and-methods-which-use-type-param

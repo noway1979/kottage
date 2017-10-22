@@ -13,7 +13,9 @@ class TestResourceException(message: String, cause: Throwable?) : Exception(mess
 }
 
 
-class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCallback, BeforeEachCallback, BeforeTestExecutionCallback, AfterTestExecutionCallback, AfterEachCallback, AfterAllCallback, TestExecutionExceptionHandler, ParameterResolver {
+class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCallback, BeforeEachCallback,
+                               BeforeTestExecutionCallback, AfterTestExecutionCallback, AfterEachCallback,
+                               AfterAllCallback, TestExecutionExceptionHandler, ParameterResolver {
 
     companion object {
         private val logger = LoggerFactory.getLogger(TestFrameworkExtension::class.java)
@@ -22,7 +24,7 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
     override fun resolveParameter(p0: ParameterContext?, p1: ExtensionContext?): Any {
         return when (p0!!.parameter.type) {
             TestResourceManager::class.java -> getTestResourceManager(p1!!)
-            else -> throw TestResourceException("Could not resolve a parameter: $p0")
+            else                            -> throw TestResourceException("Could not resolve a parameter: $p0")
         }
     }
 
@@ -30,7 +32,7 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
         val parameter: Parameter? = parameterContext?.parameter
         return when (parameter?.type) {
             TestResourceManager::class.java -> true
-            else -> false
+            else                            -> false
         }
     }
 
@@ -50,7 +52,8 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
     }
 
     private fun getTestResourceManager(context: ExtensionContext): TestResourceManager {
-        return context.getStore(ExtensionContext.Namespace.GLOBAL).get(TestResourceManager::class.java) as TestResourceManager
+        return context.getStore(ExtensionContext.Namespace.GLOBAL).get(
+                TestResourceManager::class.java) as TestResourceManager
     }
 
     private fun storeTestResourceManager(context: ExtensionContext, testResourceManager: TestResourceManager) {
@@ -97,7 +100,9 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 open class TestResourceManager : TestResource, TestLifecyclePhased {
     var currentTestPhase = TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS
 
-    private val logger = KotlinLogging.logger {}
+    companion object {
+        private val logger = KotlinLogging.logger { }
+    }
 
     //TODO make this an explicit object and move registeeMethods to that object
     private val resources: MutableMap<Class<TestResource>, TestResource> = mutableMapOf()
@@ -117,6 +122,7 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
 
     override fun init() {
         registerResource(TestEnvironment::class.java, TestEnvironment(this))
+        registerResource(FileResources::class.java, FileResources(this))
     }
 
     @Throws(MultipleFailuresError::class)
@@ -145,7 +151,7 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST)
         executeOnResourcesWithFailureValidation({ it.tearDownTestMethod(context) })
 
-        resourceOperations.reverseAfterTest()
+
         //afterEach methods come here, operations are reversed already
         // Reason: there is no callback after @AfterEach method invocation but AfterAll (tearDownTestInstance) is too late after more tests will be run before)
         // something required like tearDownAfterEach which is called after @AfterEach not before
@@ -155,7 +161,7 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     override fun tearDownTestInstance(context: ExtensionContext) {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS)
         executeOnResourcesWithFailureValidation({ it.tearDownTestInstance(context) })
-
+        resourceOperations.reverseAfterTest()
         //afterAll methods come here, operations are not reversed yet (--> done in dispose)
     }
 

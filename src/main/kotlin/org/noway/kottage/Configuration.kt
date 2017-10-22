@@ -23,8 +23,7 @@ fun <C : Any> Config.extract(type: KClass<C>, path: String): C {
     }
 }
 
-fun Class<*>.convertToTypesafeConfigPath() : String
-{
+fun Class<*>.convertToTypesafeConfigPath(): String {
     return this.name.replace('$', '.')
 }
 
@@ -37,13 +36,11 @@ open class Configuration(val config: Config) {
         return read(path)
     }
 
-    inline fun <reified T> read(path : String) : T
-    {
+    inline fun <reified T> read(path: String): T {
         return config.extract(path)
     }
 
-    fun <T : Any> read(configType: KClass<T> , path :String) : T
-    {
+    fun <T : Any> read(configType: KClass<T>, path: String): T {
         return config.extract(configType, path)
     }
 

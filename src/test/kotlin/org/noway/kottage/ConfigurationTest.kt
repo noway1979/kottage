@@ -13,12 +13,12 @@ import kotlin.reflect.KClass
 
 class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(testResourceManager) {
 
-    private val logger =  KotlinLogging.logger{}
+    private val logger = KotlinLogging.logger {}
 
     data class Person(val name: String, val age: Int)
 
-    class TestConfigResource(config : Configuration) : AbstractConfigurableTestResource<Person>(mock<TestResourceManager>(), config)
-    {
+    class TestConfigResource(config: Configuration) :
+            AbstractConfigurableTestResource<Person>(mock<TestResourceManager>(), config) {
         override val reifiedConfigType: KClass<Person>
             get() = Person::class
 
@@ -36,15 +36,14 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
         val person = Configuration(config)<Person>("key")
 
         assertAll("testdata",
-                Executable({ assertThat(person.name, `is`("foo")) }),
-                Executable({ assertThat(person.age, `is`(20)) })
+                  Executable({ assertThat(person.name, `is`("foo")) }),
+                  Executable({ assertThat(person.age, `is`(20)) })
 
-        )
+                 )
     }
 
     @Test
-    fun testConfigShouldBeLoadedFromClassPath()
-    {
+    fun testConfigShouldBeLoadedFromClassPath() {
         //this test relies on application.conf loaded from test "resources" root
         val conf = Configuration()
         assertThat(conf.config, notNullValue())
@@ -53,8 +52,7 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
     }
 
     @Test
-    fun testResourceWithConfigShallLoadConfigDataClass()
-    {
+    fun testResourceWithConfigShallLoadConfigDataClass() {
         val config = ConfigFactory.parseString("""
                                           |${TestConfigResource::class.java.convertToTypesafeConfigPath()} {
                                           |  name = "foo"
@@ -66,8 +64,8 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
         val resource = TestConfigResource(Configuration(config))
 
         assertAll("testResource with config",
-                Executable({ assertThat(resource.resourceConfig.name, `is`("foo")) }),
-                Executable({ assertThat(resource.resourceConfig.age, `is`(20)) })
-        )
+                  Executable({ assertThat(resource.resourceConfig.name, `is`("foo")) }),
+                  Executable({ assertThat(resource.resourceConfig.age, `is`(20)) })
+                 )
     }
 }

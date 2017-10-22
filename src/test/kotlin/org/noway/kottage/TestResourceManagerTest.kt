@@ -78,11 +78,13 @@ class TestResourceManagerTest() {
         val testResource2 = TestResource2(manager)
 
         manager.run({
-            registerResource(TestResource1::class.java, testResource1)
-            registerResource(TestResource2::class.java, testResource2)
+                        registerResource(TestResource1::class.java, testResource1)
+                        registerResource(TestResource2::class.java, testResource2)
 
-            assertThrows(MultipleFailuresError::class.java, { executeOnResourcesWithFailureValidation({ it.setupTestMethod(mock<ExtensionContext>()) }) })
-        })
+                        assertThrows(MultipleFailuresError::class.java, {
+                            executeOnResourcesWithFailureValidation({ it.setupTestMethod(mock<ExtensionContext>()) })
+                        })
+                    })
     }
 
 

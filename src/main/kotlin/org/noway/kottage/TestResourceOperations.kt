@@ -22,13 +22,21 @@ private val logger = KotlinLogging.logger {}
 
 open class TestResourceOperations(val manager: TestResourceManager) {
 
-    private val testScopedOperations = ArrayDeque<ReversibleOperation>()
-    private val classScopedOperations = ArrayDeque<ReversibleOperation>()
+    internal val testScopedOperations = ArrayDeque<ReversibleOperation<*>>()
+    internal val classScopedOperations = ArrayDeque<ReversibleOperation<*>>()
 
     @Throws(TestResourceException::class)
-    fun executeReversibleOperation(testResource: TestResource, description: String, forward: (resource: TestResource) -> Unit, reverse: (resource: TestResource) -> Unit) {
+    fun <R : Any> executeReversibleOperation(description: String, forward: () -> R, reverse: (result: R) -> Unit): R {
+        val operation = ReversibleStatefulTestOperation<R>(description, forward, reverse)
+        return executeReversibleOperation(operation)
+    }
+
+    @Throws(TestResourceException::class)
+    fun executeReversibleOperation(testResource: TestResource, description: String,
+                                   forward: (resource: TestResource) -> Unit,
+                                   reverse: (resource: TestResource) -> Unit) {
         val operation = ReversibleTestResourceOperation(testResource, description, forward, reverse)
-        executeReversibleOperation(operation)
+        executeReversibleOperation<Unit>(operation)
     }
 
     @Throws(TestResourceException::class)
@@ -37,25 +45,27 @@ open class TestResourceOperations(val manager: TestResourceManager) {
         executeReversibleOperation(operation)
     }
 
-    private fun executeReversibleOperation(operation: ReversibleOperation) {
+    private fun <R : Any> executeReversibleOperation(operation: ReversibleOperation<R>): R {
 
         //execute operation first. If it throws exception no reverse operation is registered.
-        operation.executeOp()
+        val result: R = operation.executeOp()
 
         //register depending on current test state
         when (manager.currentTestPhase) {
-            TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS, TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS -> registerClassScopedOperation(operation)
-            TestLifecyclePhased.TestLifecyclePhase.BEFORE_TEST, TestLifecyclePhased.TestLifecyclePhase.IN_TEST, TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST -> registerTestScopedOperation(operation)
+            TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS, TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS                                               -> registerClassScopedOperation(
+                    operation)
+            TestLifecyclePhased.TestLifecyclePhase.BEFORE_TEST, TestLifecyclePhased.TestLifecyclePhase.IN_TEST, TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST -> registerTestScopedOperation(
+                    operation)
         }
 
-
+        return result
     }
 
-    protected fun registerTestScopedOperation(operation: ReversibleOperation) {
+    protected fun registerTestScopedOperation(operation: ReversibleOperation<*>) {
         testScopedOperations.add(operation)
     }
 
-    protected fun registerClassScopedOperation(operation: ReversibleOperation) {
+    protected fun registerClassScopedOperation(operation: ReversibleOperation<*>) {
         classScopedOperations.add(operation)
     }
 
@@ -67,29 +77,47 @@ open class TestResourceOperations(val manager: TestResourceManager) {
         reverse(classScopedOperations)
     }
 
-    protected fun reverse(operations: ArrayDeque<ReversibleOperation>) {
+    protected fun reverse(operations: ArrayDeque<ReversibleOperation<*>>) {
         val reverseOrderOperations = operations.reversed()
-        val validation = reverseOrderOperations.forEachWithException<ReversibleOperation, Unit, TestResourceException> { it.reverseOp() }
+        val validation = reverseOrderOperations.forEachWithException<ReversibleOperation<*>, Unit, TestResourceException> { it.reverseOp() }
         operations.clear()
 
         if (validation.hasFailure) {
-            throw MultipleFailuresError("Error(s) occurred during operation reversal of: $operations", validation.failures)
+            throw MultipleFailuresError("Error(s) occurred during operation reversal of: $operations",
+                                        validation.failures)
         }
     }
 }
 
-interface ReversibleOperation {
-    fun executeOp()
+class ReversibleStatefulTestOperation<R>(description: String, val forward: () -> R, val reverse: (R) -> Unit) :
+        AbstractReversibleOperation<R>(description) {
+    var result: Optional<R> = Optional.empty()
+
+    override fun executeOp(): R {
+        result = Optional.of(forward())
+        logger.info("Executed operation '${description}' with result: ${result.get()}")
+        return result.get()
+    }
+
+    override fun reverseOp() {
+        logger.info("Reversing operation '$description' for result: $result")
+        reverse(result.orElseThrow({ TestResourceException("No result of operation stored.") }))
+    }
+}
+
+interface ReversibleOperation<R> {
+    fun executeOp(): R
     fun reverseOp()
 }
 
-abstract class AbstractReversibleOperation(val description: String) : ReversibleOperation {
+abstract class AbstractReversibleOperation<R>(val description: String) : ReversibleOperation<R> {
     override fun toString(): String {
         return description
     }
 }
 
-open class ReversibleTestOperation(description: String, val forward: () -> Unit, val reverse: () -> Unit) : AbstractReversibleOperation(description) {
+open class ReversibleTestOperation(description: String, val forward: () -> Unit, val reverse: () -> Unit) :
+        AbstractReversibleOperation<Unit>(description) {
     override fun executeOp() {
         logger.info { "Executing operation: $description" }
         forward()
@@ -102,7 +130,9 @@ open class ReversibleTestOperation(description: String, val forward: () -> Unit,
 }
 
 
-open class ReversibleTestResourceOperation(val resource: TestResource, val description: String, val forward: (resource: TestResource) -> Unit, val reverse: (resource: TestResource) -> Unit) : ReversibleOperation {
+open class ReversibleTestResourceOperation(val resource: TestResource, val description: String,
+                                           val forward: (resource: TestResource) -> Unit,
+                                           val reverse: (resource: TestResource) -> Unit) : ReversibleOperation<Unit> {
     override fun executeOp() {
         logger.info { "Executing reversable operation: $description (Resource: ${resource.displayName}) " }
         forward(resource)
