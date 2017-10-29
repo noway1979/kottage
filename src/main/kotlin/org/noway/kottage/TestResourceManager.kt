@@ -62,7 +62,7 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 
     @Throws(Exception::class)
     override fun beforeAll(context: ExtensionContext) {
-        val testResourceManager = initializeTestResourceManager(context)
+        initializeTestResourceManager(context)
     }
 
     @Throws(Exception::class)
@@ -98,17 +98,21 @@ class TestFrameworkExtension : Extension, TestInstancePostProcessor, BeforeAllCa
 
 
 open class TestResourceManager : TestResource, TestLifecyclePhased {
-    var currentTestPhase = TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS
-
     companion object {
         private val logger = KotlinLogging.logger { }
     }
 
-    //TODO make this an explicit object and move registeeMethods to that object
+    var currentTestPhase = TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS
+
+    init {
+        transitionTo(TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS)
+    }
+
+    //TODO make this an explicit object ResourceRegistration and move register-methods to that object
     private val resources: MutableMap<Class<TestResource>, TestResource> = mutableMapOf()
     val resourceOperations = TestResourceOperations(this)
 
-    override fun transitionTo(phase: TestLifecyclePhased.TestLifecyclePhase) {
+    override final fun transitionTo(phase: TestLifecyclePhased.TestLifecyclePhase) {
         logger.debug { "Transitioning to: $phase" }
         currentTestPhase = phase
     }
@@ -126,13 +130,15 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     }
 
     @Throws(MultipleFailuresError::class)
-    override fun setupTestInstance(context: ExtensionContext) {
-        executeOnResourcesWithFailureValidation({ it.setupTestInstance(context) })
+    override fun postProcessTestInstance(context: ExtensionContext) {
+        transitionTo(TestLifecyclePhased.TestLifecyclePhase.BEFORE_TEST)
+        //executed before setupTestInstance
+        executeOnResourcesWithFailureValidation({ it.postProcessTestInstance(context) })
     }
 
     @Throws(MultipleFailuresError::class)
-    override fun postProcessTestInstance(context: ExtensionContext) {
-        executeOnResourcesWithFailureValidation({ it.postProcessTestInstance(context) })
+    override fun setupTestInstance(context: ExtensionContext) {
+        executeOnResourcesWithFailureValidation({ it.setupTestInstance(context) })
     }
 
     @Throws(MultipleFailuresError::class)
@@ -150,23 +156,22 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     override fun tearDownTestMethod(context: ExtensionContext) {
         transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST)
         executeOnResourcesWithFailureValidation({ it.tearDownTestMethod(context) })
-
-
-        //afterEach methods come here, operations are reversed already
-        // Reason: there is no callback after @AfterEach method invocation but AfterAll (tearDownTestInstance) is too late after more tests will be run before)
-        // something required like tearDownAfterEach which is called after @AfterEach not before
+        //afterEach methods come here
     }
 
     @Throws(MultipleFailuresError::class)
     override fun tearDownTestInstance(context: ExtensionContext) {
-        transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS)
-        executeOnResourcesWithFailureValidation({ it.tearDownTestInstance(context) })
         resourceOperations.reverseAfterTest()
-        //afterAll methods come here, operations are not reversed yet (--> done in dispose)
+        executeOnResourcesWithFailureValidation({ it.tearDownTestInstance(context) })
+
+        //after each test method transition prematurely to AFTER_CLASS because there is no other hook point before @AfterAll after last test method.
+        // In case another test follows the phase is immediately transitioned back to BEFORE_TEST.
+        transitionTo(TestLifecyclePhased.TestLifecyclePhase.AFTER_CLASS)
     }
 
     @Throws(MultipleFailuresError::class)
     override fun dispose(context: ExtensionContext) {
+        //afterAll method comes here
         //reverting late to keep operation effects for @AfterAll
         resourceOperations.reverseAfterClass()
         executeOnResourcesWithFailureValidation({ it.dispose(context) })
@@ -181,14 +186,16 @@ open class TestResourceManager : TestResource, TestLifecyclePhased {
     }
 
     fun <T : TestResource> registerResource(key: Class<T>, instance: T) {
+        @Suppress("unchecked")
         resources.put(key as Class<TestResource>, instance)
         instance.init()
-        logger.info { "Registered instance: ${instance.displayName} for key '${key.simpleName}'" }
+        logger.info { "Registered instance: ${instance.displayName} for class '${key.simpleName}'" }
     }
 
     //try reified form: http://kotlinlang.org/docs/reference/idioms.html#convenient-form-for-a-generic-function-that-requires-the-generic-type-information
     //inline fun <reified T: Any> Gson.fromJson(json: JsonElement): T = this.fromJson(json, T::class.java) --> does not work because cannot access non-public API in inline functions
     fun <T : TestResource> getTestResource(testResourceClass: Class<T>): T {
+        @Suppress("unchecked")
         return resources.get(testResourceClass as Class<TestResource>) as T
     }
 

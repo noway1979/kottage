@@ -58,8 +58,8 @@ class TestResourceManagerLifecycleTest(manager: TestResourceManager) : KottageTe
 
     @BeforeEach
     fun setup() {
-        logger.info { "TEST: setup in test" }
-        assertThat(manager.currentTestPhase, `is`(TestLifecyclePhased.TestLifecyclePhase.BEFORE_CLASS))
+        logger.info { "TEST: beforeEach" }
+        assertThat(manager.currentTestPhase, `is`(TestLifecyclePhased.TestLifecyclePhase.BEFORE_TEST))
     }
 
     @Test
@@ -68,9 +68,15 @@ class TestResourceManagerLifecycleTest(manager: TestResourceManager) : KottageTe
         assertThat(manager.currentTestPhase, `is`(TestLifecyclePhased.TestLifecyclePhase.IN_TEST))
     }
 
+    @Test
+    fun testLifecyclePhaseShouldBeInTestMethodAgain() {
+        logger.info("TEST: Running Test")
+        assertThat(manager.currentTestPhase, `is`(TestLifecyclePhased.TestLifecyclePhase.IN_TEST))
+    }
+
     @AfterEach
     fun tearDown() {
-        logger.info("TEST:  TearDown test method")
+        logger.info("TEST:  afterEach")
         assertThat(manager.currentTestPhase, `is`(TestLifecyclePhased.TestLifecyclePhase.AFTER_TEST))
     }
 
@@ -85,9 +91,9 @@ class TestResourceOperationLifecycleTest(manager: TestResourceManager) : Kottage
         override fun tearDownTestInstance(context: ExtensionContext) {
             val instance = context.testInstance.kGet() as? TestResourceOperationLifecycleTest
             assertThat("test scoped operations are reverted after test method",
-                       instance!!.testScopedWithTestResourceExecuted, `is`(true))
-            assertThat("test scoped operations are reverted after test method",
-                       instance!!.testScopedWithoutTestResourceExecuted, `is`(true))
+                       instance!!.testScopedWithTestResourceExecuted, `is`(false))
+            assertThat("test scoped operations with test resource are reverted after test method",
+                       instance.testScopedWithoutTestResourceExecuted, `is`(false))
         }
 
         override fun dispose(context: ExtensionContext) {
@@ -109,15 +115,16 @@ class TestResourceOperationLifecycleTest(manager: TestResourceManager) : Kottage
             val testResource = ValidatingTestResource(manager)
             logger.info("TEST: BeforeAll")
             manager.registerResource(ValidatingTestResource::class.java, testResource)
-            manager.resourceOperations.executeReversibleOperation(testResource, "class-scoped operation",
-                                                                  { Companion.classScopedOperationExecuted = true },
-                                                                  { Companion.classScopedOperationExecuted = false })
+            manager.resourceOperations.executeReversibleTestResourceOperation(testResource,
+                                                                              { Companion.classScopedOperationExecuted = true },
+                                                                              { Companion.classScopedOperationExecuted = false },
+                                                                              "class-scoped operation")
             assertThat(classScopedOperationExecuted, `is`(true))
         }
 
         @AfterAll
         @JvmStatic
-        fun tearDownAfterClass(manager: TestResourceManager) {
+        fun tearDownAfterClass() {
             logger.info("TEST: AfterAll")
             assertThat("class-scoped operations should not have been reverted in afterAll yet",
                        classScopedOperationExecuted, `is`(true))
@@ -129,26 +136,30 @@ class TestResourceOperationLifecycleTest(manager: TestResourceManager) : Kottage
         assertThat("No test-scoped operations should be pending at test start",
                    manager.resourceOperations.testScopedOperations.isEmpty(), `is`(true))
         val testResource = ValidatingTestResource(manager)
-        manager.resourceOperations.executeReversibleOperation(testResource,
-                                                              "test-scoped operation with backing test resource",
-                                                              { testScopedWithTestResourceExecuted = true },
-                                                              { testScopedWithTestResourceExecuted = false })
-        manager.resourceOperations.executeReversibleOperation("test-scoped operation without backing test resource",
-                                                              { testScopedWithoutTestResourceExecuted = true },
-                                                              { testScopedWithoutTestResourceExecuted = false })
+        manager.resourceOperations.executeReversibleTestResourceOperation(testResource,
+                                                                          { testScopedWithTestResourceExecuted = true },
+                                                                          { testScopedWithTestResourceExecuted = false },
+                                                                          "test-scoped operation with backing test resource")
+        manager.resourceOperations.executeReversibleOperation({ testScopedWithoutTestResourceExecuted = true },
+                                                              { testScopedWithoutTestResourceExecuted = false },
+                                                              "test-scoped operation without backing test resource")
 
         assertThat(testScopedWithTestResourceExecuted, `is`(true))
         assertThat(testScopedWithoutTestResourceExecuted, `is`(true))
     }
 
     @Test
-    fun testResourceOperation() {
+    fun testSecondResourceOperationShouldBeRevertedInTestScope() {
         assertThat("No test-scoped operations should be pending at test start",
                    manager.resourceOperations.testScopedOperations.isEmpty(), `is`(true))
 
-        manager.resourceOperations.executeReversibleOperation("test-scoped operation without backing test resource",
-                                                              { testScopedWithoutTestResourceExecuted = true },
-                                                              { testScopedWithoutTestResourceExecuted = false })
+        manager.resourceOperations.executeReversibleOperation({ testScopedWithTestResourceExecuted = true },
+                                                              { testScopedWithTestResourceExecuted = false },
+                                                              "test-scoped operation with backing test resource")
+
+        manager.resourceOperations.executeReversibleOperation({ testScopedWithoutTestResourceExecuted = true },
+                                                              { testScopedWithoutTestResourceExecuted = false },
+                                                              "test-scoped operation without backing test resource")
     }
 
 

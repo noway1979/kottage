@@ -9,9 +9,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.opentest4j.MultipleFailuresError
 
-class TestResourceManagerTest() {
+class TestResourceManagerTest {
     private val logger = KotlinLogging.logger {}
 
+
+    abstract class FailingTestResource(manager: TestResourceManager) : AbstractTestResource(manager) {
+        override fun setupTestMethod(context: ExtensionContext) {
+            throw TestResourceException("Deliberate Exception from TestResource")
+        }
+    }
 
     @Test
     fun testTestResourceCanBeRegistered() {
@@ -64,11 +70,6 @@ class TestResourceManagerTest() {
 
     @Test
     fun testResourceLifecycleWithValidationShouldThrowMultipleExceptions() {
-        abstract class FailingTestResource(manager: TestResourceManager) : AbstractTestResource(manager) {
-            override fun setupTestMethod(context: ExtensionContext) {
-                throw TestResourceException("Deliberate Exception from TestResource")
-            }
-        }
 
         class TestResource1(manager: TestResourceManager) : FailingTestResource(manager)
         class TestResource2(manager: TestResourceManager) : FailingTestResource(manager)

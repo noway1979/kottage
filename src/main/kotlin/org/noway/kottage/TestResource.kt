@@ -64,7 +64,7 @@ abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: Te
     val resourceConfig: C = config.read(reifiedConfigType, configPath())
 
     //inner classes' separator '$' is interpreted as key separator '.'
-    private fun configPath() = javaClass.canonicalName.replace('$', '.')
+    private fun configPath() = javaClass.convertToTypesafeConfigPath()
 
 }
 

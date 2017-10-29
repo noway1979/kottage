@@ -1,5 +1,6 @@
 package org.noway.kottage
 
+import com.typesafe.config.ConfigException
 import com.typesafe.config.ConfigFactory
 import io.kotlintest.mock.mock
 import mu.KotlinLogging
@@ -7,6 +8,7 @@ import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.`is`
 import org.hamcrest.Matchers.notNullValue
 import org.junit.jupiter.api.Assertions.assertAll
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.function.Executable
 import kotlin.reflect.KClass
@@ -67,5 +69,17 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
                   Executable({ assertThat(resource.resourceConfig.name, `is`("foo")) }),
                   Executable({ assertThat(resource.resourceConfig.age, `is`(20)) })
                  )
+    }
+
+    @Test
+    fun testResourceWithConfigPathMisMatchShouldThrowException() {
+        val config = ConfigFactory.parseString("""
+                                          |"doesnotmatchconfigurationclass"
+                                          |{
+                                          |  name = "foo"
+                                          |  age = 20
+                                          |}""".trimMargin())
+
+        assertThrows(ConfigException.BadPath::class.java, { TestConfigResource(Configuration(config)) })
     }
 }
