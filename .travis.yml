@@ -4,6 +4,7 @@ jdk:
   - oraclejdk8
 
 # whitelist
+# push
 branches:
   only:
     - master
