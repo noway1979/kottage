@@ -5,17 +5,21 @@ import kotlin.reflect.KClass
 
 
 interface TestResource {
+
+    val displayName: String
+        get() = javaClass.name
+
     @Throws(TestResourceException::class)
     fun init()
 
     @Throws(TestResourceException::class)
-    fun postProcessTestInstance(testInstance: Any, context: ExtensionContext)
+    fun postProcessTestInstance(context: ExtensionContext)
 
     @Throws(TestResourceException::class)
-    fun setupTestInstance()
+    fun setupTestInstance(context: ExtensionContext)
 
     @Throws(TestResourceException::class)
-    fun setupTestMethod()
+    fun setupTestMethod(context: ExtensionContext)
 
     @Throws(TestResourceException::class)
     fun tearDownTestMethod(context: ExtensionContext)
@@ -24,36 +28,35 @@ interface TestResource {
     fun tearDownTestInstance(context: ExtensionContext)
 
     @Throws(TestResourceException::class)
-    fun dispose()
-
+    fun dispose(context: ExtensionContext)
 }
 
 abstract class AbstractTestResource(val testResourceManager: TestResourceManager) : TestResource {
     override fun init() {
     }
 
-    override fun setupTestInstance() {
+    override fun setupTestInstance(context: ExtensionContext) {
     }
 
-    override fun setupTestMethod() {
+    override fun setupTestMethod(context: ExtensionContext) {
     }
 
     override fun tearDownTestMethod(context: ExtensionContext) {
     }
 
-    override fun postProcessTestInstance(testInstance: Any, context: ExtensionContext) {
+    override fun postProcessTestInstance(context: ExtensionContext) {
     }
 
     override fun tearDownTestInstance(context: ExtensionContext) {
     }
 
-    override fun dispose() {
+    override fun dispose(context: ExtensionContext) {
     }
-
-
 }
 
-abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: TestResourceManager, config: Configuration) : AbstractTestResource(testResourceManager) {
+abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: TestResourceManager,
+                                                         config: Configuration) :
+        AbstractTestResource(testResourceManager) {
     protected abstract val reifiedConfigType: KClass<C>
 
     //https@ //stackoverflow.com/questions/36012190/kotlin-abstract-class-with-generic-param-and-methods-which-use-type-param
@@ -61,7 +64,7 @@ abstract class AbstractConfigurableTestResource<C : Any>(testResourceManager: Te
     val resourceConfig: C = config.read(reifiedConfigType, configPath())
 
     //inner classes' separator '$' is interpreted as key separator '.'
-    private fun configPath() = javaClass.canonicalName.replace('$', '.')
+    private fun configPath() = javaClass.convertToTypesafeConfigPath()
 
 }
 

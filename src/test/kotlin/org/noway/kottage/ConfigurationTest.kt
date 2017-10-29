@@ -1,5 +1,6 @@
 package org.noway.kottage
 
+import com.typesafe.config.ConfigException
 import com.typesafe.config.ConfigFactory
 import io.kotlintest.mock.mock
 import mu.KotlinLogging
@@ -7,18 +8,19 @@ import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.`is`
 import org.hamcrest.Matchers.notNullValue
 import org.junit.jupiter.api.Assertions.assertAll
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.function.Executable
 import kotlin.reflect.KClass
 
 class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(testResourceManager) {
 
-    private val logger =  KotlinLogging.logger{}
+    private val logger = KotlinLogging.logger {}
 
     data class Person(val name: String, val age: Int)
 
-    class TestConfigResource(config : Configuration) : AbstractConfigurableTestResource<Person>(mock<TestResourceManager>(), config)
-    {
+    class TestConfigResource(config: Configuration) :
+            AbstractConfigurableTestResource<Person>(mock<TestResourceManager>(), config) {
         override val reifiedConfigType: KClass<Person>
             get() = Person::class
 
@@ -36,15 +38,14 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
         val person = Configuration(config)<Person>("key")
 
         assertAll("testdata",
-                Executable({ assertThat(person.name, `is`("foo")) }),
-                Executable({ assertThat(person.age, `is`(20)) })
+                  Executable({ assertThat(person.name, `is`("foo")) }),
+                  Executable({ assertThat(person.age, `is`(20)) })
 
-        )
+                 )
     }
 
     @Test
-    fun testConfigShouldBeLoadedFromClassPath()
-    {
+    fun testConfigShouldBeLoadedFromClassPath() {
         //this test relies on application.conf loaded from test "resources" root
         val conf = Configuration()
         assertThat(conf.config, notNullValue())
@@ -53,8 +54,7 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
     }
 
     @Test
-    fun testResourceWithConfigShallLoadConfigDataClass()
-    {
+    fun testResourceWithConfigShallLoadConfigDataClass() {
         val config = ConfigFactory.parseString("""
                                           |${TestConfigResource::class.java.convertToTypesafeConfigPath()} {
                                           |  name = "foo"
@@ -66,8 +66,20 @@ class ConfigurationTest(testResourceManager: TestResourceManager) : KottageTest(
         val resource = TestConfigResource(Configuration(config))
 
         assertAll("testResource with config",
-                Executable({ assertThat(resource.resourceConfig.name, `is`("foo")) }),
-                Executable({ assertThat(resource.resourceConfig.age, `is`(20)) })
-        )
+                  Executable({ assertThat(resource.resourceConfig.name, `is`("foo")) }),
+                  Executable({ assertThat(resource.resourceConfig.age, `is`(20)) })
+                 )
+    }
+
+    @Test
+    fun testResourceWithConfigPathMisMatchShouldThrowException() {
+        val config = ConfigFactory.parseString("""
+                                          |"doesnotmatchconfigurationclass"
+                                          |{
+                                          |  name = "foo"
+                                          |  age = 20
+                                          |}""".trimMargin())
+
+        assertThrows(ConfigException.BadPath::class.java, { TestConfigResource(Configuration(config)) })
     }
 }

@@ -1,15 +1,23 @@
 package org.noway.kottage
 
+import io.kotlintest.mock.mock
 import mu.KotlinLogging
 import org.hamcrest.CoreMatchers.`is`
 import org.hamcrest.MatcherAssert.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtensionContext
 import org.opentest4j.MultipleFailuresError
 
-class TestResourceManagerTest() {
+class TestResourceManagerTest {
     private val logger = KotlinLogging.logger {}
 
+
+    abstract class FailingTestResource(manager: TestResourceManager) : AbstractTestResource(manager) {
+        override fun setupTestMethod(context: ExtensionContext) {
+            throw TestResourceException("Deliberate Exception from TestResource")
+        }
+    }
 
     @Test
     fun testTestResourceCanBeRegistered() {
@@ -62,11 +70,6 @@ class TestResourceManagerTest() {
 
     @Test
     fun testResourceLifecycleWithValidationShouldThrowMultipleExceptions() {
-        abstract class FailingTestResource(manager: TestResourceManager) : AbstractTestResource(manager) {
-            override fun setupTestMethod() {
-                throw TestResourceException("Deliberate Exception from TestResource")
-            }
-        }
 
         class TestResource1(manager: TestResourceManager) : FailingTestResource(manager)
         class TestResource2(manager: TestResourceManager) : FailingTestResource(manager)
@@ -76,16 +79,18 @@ class TestResourceManagerTest() {
         val testResource2 = TestResource2(manager)
 
         manager.run({
-            registerResource(TestResource1::class.java, testResource1)
-            registerResource(TestResource2::class.java, testResource2)
+                        registerResource(TestResource1::class.java, testResource1)
+                        registerResource(TestResource2::class.java, testResource2)
 
-            assertThrows(MultipleFailuresError::class.java, { executeOnResourcesWithFailureValidation({ it.setupTestMethod() }) })
-        })
+                        assertThrows(MultipleFailuresError::class.java, {
+                            executeOnResourcesWithFailureValidation({ it.setupTestMethod(mock<ExtensionContext>()) })
+                        })
+                    })
     }
 
 
     @Test
     fun testResourceLifecycleWithValidationShouldExecuteForAllResources() {
-
+        TODO()
     }
 }
