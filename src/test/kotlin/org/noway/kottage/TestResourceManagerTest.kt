@@ -91,6 +91,35 @@ class TestResourceManagerTest {
 
     @Test
     fun testResourceLifecycleWithValidationShouldExecuteForAllResources() {
-        TODO()
+        //validation is failure tolerant, so a single exception thrown by any resource does not prevent executing same lifecycle event on other resources
+
+        abstract class ExecutionTracedFailingTestResource(manager: TestResourceManager) : FailingTestResource(manager) {
+            var hasExecuted: Boolean = false
+            override fun setupTestMethod(context: ExtensionContext) {
+                hasExecuted = true
+                super.setupTestMethod(context)
+            }
+        }
+
+        //create two concrete types to register as its key in test resource manager
+        class TestResource1(manager: TestResourceManager) : ExecutionTracedFailingTestResource(manager)
+
+        class TestResource2(manager: TestResourceManager) : ExecutionTracedFailingTestResource(manager)
+
+        val manager = TestResourceManager()
+        val testResource1 = TestResource1(manager)
+        val testResource2 = TestResource2(manager)
+
+        manager.run({
+                        registerResource(TestResource1::class.java, testResource1)
+                        registerResource(TestResource2::class.java, testResource2)
+
+                        assertThrows(MultipleFailuresError::class.java, {
+                            executeOnResourcesWithFailureValidation({ it.setupTestMethod(mock<ExtensionContext>()) })
+                        })
+                    })
+
+        assertThat(testResource1.hasExecuted, `is`(true))
+        assertThat(testResource2.hasExecuted, `is`(true))
     }
 }
